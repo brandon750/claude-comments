@@ -1,0 +1,21 @@
+{
+	"manifest_version": 3,
+	"name": "Claude Comments",
+	"version": "1.1.0",
+	"description": "Leave comments on local .test sites at any screen size. Each comment becomes a task for Claude Code.",
+	"permissions": ["declarativeNetRequest"],
+	"host_permissions": ["<all_urls>"],
+	"background": { "service_worker": "background.js" },
+	"content_scripts": [
+		{
+			"matches": ["*://*.test/*"],
+			"js": ["content.js"],
+			"all_frames": true,
+			"run_at": "document_idle"
+		}
+	],
+	"action": { "default_title": "Toggle comment mode (⌥C)" },
+	"declarative_net_request": {
+		"rule_resources": [{ "id": "allow-framing", "enabled": true, "path": "rules.json" }]
+	}
+}

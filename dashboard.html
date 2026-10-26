@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Claude Comments</title>
+		<style>
+			:root { --bg: #f4f2ec; --card: #fff; --ink: #1f1e1d; --muted: #6b6964; --line: #e2dfd6; --accent: #d97757; }
+			@media (prefers-color-scheme: dark) {
+				:root { --bg: #1a1918; --card: #252321; --ink: #ecebe7; --muted: #a09d96; --line: #383532; }
+			}
+			* { box-sizing: border-box; }
+			body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+			header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+				padding: 14px 24px; background: var(--bg); border-bottom: 1px solid var(--line); }
+			h1 { margin: 0 12px 0 0; font-size: 17px; }
+			select, button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+			button:hover { border-color: var(--muted); }
+			.tip { margin-left: auto; color: var(--muted); font-size: 12px; }
+			.tip code { background: var(--card); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); }
+			main { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 24px; }
+			.card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+			.shot { display: block; aspect-ratio: 16 / 10; background: var(--line); }
+			.shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+			.body { display: flex; flex-direction: column; gap: 8px; padding: 14px; flex: 1; }
+			.head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+			.chip { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; background: #fbe9e2; color: #a3492a; }
+			.chip.resolved { background: #e2f3e7; color: #2c7343; }
+			.chip.needs_info { background: #faf0d2; color: #7d5f0d; }
+			.vp { margin-left: auto; font-weight: 500; font-size: 12px; color: var(--muted); }
+			.text { white-space: pre-wrap; word-break: break-word; }
+			.meta { color: var(--muted); font-size: 12px; word-break: break-all; }
+			.meta a { color: inherit; }
+			.note { padding: 8px 10px; background: var(--bg); border-radius: 6px; font-size: 13px; white-space: pre-wrap; }
+			.actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
+			.chip.in_progress { background: #e1ecfb; color: #2457a6; }
+			.card.in_progress { border-color: #8fb3ea; box-shadow: 0 0 0 1px #8fb3ea; }
+			.card.needs_info { border-color: #e2c672; }
+			.working { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #2457a6; }
+			.working::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+			@keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+			.summary { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 14px 24px 0; font-size: 13px; color: var(--muted); }
+			.summary strong { color: var(--ink); }
+			.summary .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+			.progress { flex-basis: 100%; height: 6px; display: flex; overflow: hidden; border-radius: 3px; background: var(--line); }
+			.progress span { display: block; height: 100%; transition: width .4s; }
+			.group { grid-column: 1 / -1; margin: 8px 0 -4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+			.group:first-child { margin-top: 0; }
+			.thread { display: flex; flex-direction: column; gap: 6px; }
+			.msg { padding: 8px 10px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; word-break: break-word; background: var(--bg); }
+			.msg.user { margin-left: 24px; background: transparent; border: 1px solid var(--line); }
+			.msg b { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
+			.reply { display: flex; flex-direction: column; gap: 6px; }
+			.reply textarea { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+				padding: 8px; min-height: 64px; resize: vertical; }
+			.reply textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+			.reply .row { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+			.reply .row span { margin-right: auto; font-size: 11px; color: var(--muted); }
+			button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+			button:disabled { opacity: .5; cursor: default; }
+			.empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 60px 0; }
+			@media (max-width: 640px) { header, main, .summary { padding-left: 16px; padding-right: 16px; } main { grid-template-columns: 1fr; } .tip { margin-left: 0; } }
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>Claude Comments</h1>
+			<select id="site"></select>
+			<select id="status">
+				<option value="open,in_progress,needs_info">Open</option>
+				<option value="resolved">Resolved</option>
+				<option value="all">All</option>
+			</select>
+			<span class="tip">In Claude Code, run <code>/action-comments</code> from the project · updates live</span>
+		</header>
+		<div class="summary" id="summary" hidden></div>
+		<main id="list"></main>
+		<script>
+			const params = new URLSearchParams(location.search);
+			const siteEl = document.getElementById('site');
+			const statusEl = document.getElementById('status');
+			const list = document.getElementById('list');
+			const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+			const summaryEl = document.getElementById('summary');
+			const STATUS_LABEL = { open: 'queued', in_progress: 'working on it', needs_info: 'needs info', resolved: 'resolved' };
+			const GROUPS = [
+				['in_progress', 'Claude is working on'],
+				['needs_info', 'Needs your input'],
+				['open', 'Queued for Claude'],
+				['resolved', 'Resolved'],
+			];
+			const drafts = {}; // reply drafts by comment id, kept across re-renders
+			let lastJson = '';
+
+			function ago(iso) {
+				const s = (Date.now() - new Date(iso)) / 1000;
+				if (s < 60) return 'just now';
+				if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+				if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+				return `${Math.floor(s / 86400)}d ago`;
+			}
+
+			async function loadSites() {
+				const sites = await fetch('/api/sites').then((r) => r.json());
+				const wanted = siteEl.options.length ? siteEl.value : params.get('site');
+				siteEl.innerHTML = '<option value="">All sites</option>' +
+					sites.map((s) => `<option value="${esc(s.site)}">${esc(s.site)} (${s.open + s.in_progress + s.needs_info} open)</option>`).join('');
+				if (wanted && sites.some((s) => s.site === wanted)) siteEl.value = wanted;
+			}
+
+			// Counts for the current site, plus comments resolved today so the bar shows how far through Claude is.
+			async function renderSummary() {
+				if (statusEl.value === 'resolved') return (summaryEl.hidden = true);
+				const q = new URLSearchParams({ status: 'all' });
+				if (siteEl.value) q.set('site', siteEl.value);
+				const all = await fetch(`/api/comments?${q}`).then((r) => r.json());
+				const today = new Date().toDateString();
+				const n = (status) => all.filter((c) => c.status === status).length;
+				const counts = {
+					in_progress: n('in_progress'),
+					needs_info: n('needs_info'),
+					open: n('open'),
+					resolved: all.filter((c) => c.status === 'resolved' && c.resolvedAt && new Date(c.resolvedAt).toDateString() === today).length,
+				};
+				const total = Object.values(counts).reduce((a, b) => a + b, 0);
+				const colours = { resolved: '#3f9b5a', in_progress: '#2457a6', needs_info: '#c99a1e', open: 'var(--accent)' };
+				const labels = { resolved: 'resolved today', in_progress: 'in progress', needs_info: 'need your input', open: 'queued' };
+				const order = ['resolved', 'in_progress', 'needs_info', 'open'];
+				summaryEl.hidden = !total;
+				summaryEl.innerHTML =
+					order.map((k) => `<span><span class="dot" style="background:${colours[k]}"></span><strong>${counts[k]}</strong> ${labels[k]}</span>`).join('') +
+					`<div class="progress">${order.map((k) => `<span style="width:${total ? (counts[k] / total) * 100 : 0}%;background:${colours[k]}"></span>`).join('')}</div>`;
+			}
+
+			function card(c) {
+				const thread = c.thread || [];
+				const noteInThread = thread.some((m) => m.from === 'claude' && m.text === c.resolution);
+				// Older needs-info comments only have the question in `resolution`.
+				const messages = c.status === 'needs_info' && c.resolution && !noteInThread ? [...thread, { from: 'claude', text: c.resolution }] : thread;
+				return `
+					<article class="card ${c.status}">
+						${c.screenshot ? `<a class="shot" href="/screenshots/${c.id}.png" target="_blank"><img loading="lazy" src="/screenshots/${c.id}.png" alt=""></a>` : ''}
+						<div class="body">
+							<div class="head">#${c.number} <span class="chip ${c.status}">${STATUS_LABEL[c.status] || c.status}</span>
+								<span class="vp">${c.viewport?.width}px · ${c.viewport?.breakpoint}</span></div>
+							<div class="text">${esc(c.text)}</div>
+							<div class="meta"><a href="${esc(c.url)}" target="_blank">${esc(c.site + c.path)}</a> · ${new Date(c.createdAt).toLocaleString()}</div>
+							<div class="meta"><code>${esc(c.element?.selector)}</code></div>
+							${c.status === 'in_progress' ? `<div class="working">Claude is working on this · started ${ago(c.startedAt || c.updatedAt)}</div>` : ''}
+							${messages.length ? `<div class="thread">${messages.map((m) => `<div class="msg ${m.from}"><b>${m.from === 'claude' ? 'Claude' : 'You'}</b>${esc(m.text)}</div>`).join('')}</div>` : ''}
+							${c.resolution && !messages.some((m) => m.text === c.resolution) ? `<div class="note"><strong>Claude:</strong> ${esc(c.resolution)}</div>` : ''}
+							${c.status === 'needs_info' ? `
+								<form class="reply" data-id="${c.id}">
+									<textarea name="reply" placeholder="Answer Claude's question…" data-id="${c.id}">${esc(drafts[c.id] || '')}</textarea>
+									<div class="row"><span>⌘↵ to send · goes back in the queue</span><button class="primary" type="submit">Send to Claude</button></div>
+								</form>` : ''}
+							<div class="actions">
+								${c.status === 'resolved'
+									? `<button data-id="${c.id}" data-status="open">Reopen</button>`
+									: `<button data-id="${c.id}" data-status="resolved" title="Close without Claude actioning it">Close comment</button>`}
+								<button data-id="${c.id}" data-delete>Delete</button>
+							</div>
+						</div>
+					</article>`;
+			}
+
+			async function render({ force = true } = {}) {
+				const q = new URLSearchParams({ status: statusEl.value });
+				if (siteEl.value) q.set('site', siteEl.value);
+				const comments = (await fetch(`/api/comments?${q}`).then((r) => r.json())).reverse();
+				renderSummary();
+
+				// Polling only redraws when something changed, so typing and scrolling aren't disturbed.
+				const json = JSON.stringify(comments);
+				if (!force && json === lastJson) return;
+				lastJson = json;
+
+				const focused = document.activeElement?.matches?.('textarea[data-id]') ? document.activeElement : null;
+				const focus = focused && { id: focused.dataset.id, start: focused.selectionStart, end: focused.selectionEnd };
+
+				if (!comments.length) return (list.innerHTML = '<div class="empty">No comments here.</div>');
+				const grouped = statusEl.value !== 'resolved';
+				list.innerHTML = grouped
+					? GROUPS.map(([status, title]) => {
+							const items = comments.filter((c) => c.status === status);
+							return items.length ? `<h2 class="group">${title} (${items.length})</h2>${items.map(card).join('')}` : '';
+						}).join('')
+					: comments.map(card).join('');
+
+				if (focus) {
+					const ta = list.querySelector(`textarea[data-id="${focus.id}"]`);
+					ta?.focus();
+					ta?.setSelectionRange(focus.start, focus.end);
+				}
+			}
+
+			async function refresh() {
+				await loadSites();
+				await render();
+			}
+
+			list.addEventListener('click', async (e) => {
+				const btn = e.target.closest('button[data-id]');
+				if (!btn) return;
+				if (btn.hasAttribute('data-delete')) {
+					if (!confirm('Delete this comment?')) return;
+					await fetch(`/api/comments/${btn.dataset.id}`, { method: 'DELETE' });
+				} else {
+					await fetch(`/api/comments/${btn.dataset.id}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ status: btn.dataset.status }),
+					});
+				}
+				refresh();
+			});
+
+			list.addEventListener('input', (e) => {
+				if (e.target.matches('textarea[data-id]')) drafts[e.target.dataset.id] = e.target.value;
+			});
+
+			list.addEventListener('keydown', (e) => {
+				if (e.target.matches('textarea[data-id]') && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+					e.preventDefault();
+					e.target.form.requestSubmit();
+				}
+			});
+
+			list.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				const form = e.target;
+				const reply = form.reply.value.trim();
+				if (!reply) return form.reply.focus();
+				const button = form.querySelector('button');
+				button.disabled = true;
+				const res = await fetch(`/api/comments/${form.dataset.id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ reply }),
+				});
+				if (!res.ok) {
+					button.disabled = false;
+					return alert((await res.json().catch(() => ({}))).error || 'Could not send reply');
+				}
+				delete drafts[form.dataset.id];
+				refresh();
+			});
+
+			siteEl.addEventListener('change', () => render());
+			statusEl.addEventListener('change', () => render());
+			window.addEventListener('focus', refresh);
+			setInterval(() => document.visibilityState === 'visible' && render({ force: false }), 3000);
+			refresh();
+		</script>
+	</body>
+</html>
