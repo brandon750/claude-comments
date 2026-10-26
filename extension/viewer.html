@@ -3,31 +3,42 @@
 	<head>
 		<meta charset="utf-8" />
 		<title>Responsive Viewer</title>
+		<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
 		<style>
+			:root { --pink: #ff66b8; --pink-hi: #ff8ac9; --green: #2bff88; --on-neon: #120a10; --metal: #0d0e12; --metal-2: #1c1e25;
+				--chrome: linear-gradient(180deg, #fff 0%, #d4d9e1 30%, #7c8491 49%, #f2f4f7 53%, #aab1bc 80%, #eef1f4 100%); }
 			* { box-sizing: border-box; }
 			html, body { margin: 0; height: 100%; }
-			body { display: flex; flex-direction: column; background: #e9e7e1; color: #1f1e1d;
+			body { display: flex; flex-direction: column; color: #121218;
+				background: radial-gradient(800px 400px at 100% 0, rgba(255,102,184,.12), transparent 70%), #e4e6ec;
 				font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-			header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; background: #1f1e1d; color: #fff; }
+			header { position: relative; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; color: #fff;
+				background: linear-gradient(180deg, var(--metal-2), var(--metal)); }
+			header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: var(--chrome); }
+			.mark { width: 20px; height: 20px; flex: none; }
 			form { display: flex; flex: 1 1 320px; gap: 6px; }
-			input { font: inherit; color: #1f1e1d; background: #fff; border: 0; border-radius: 6px; padding: 7px 10px; }
+			input { font: inherit; color: #121218; background: #fff; border: 0; border-radius: 8px; padding: 7px 10px; }
+			input:focus { outline: 2px solid var(--pink); }
 			#url { flex: 1; min-width: 0; }
 			#width { width: 76px; }
-			button { font: inherit; font-weight: 500; color: inherit; background: rgba(255,255,255,.1); border: 0; border-radius: 6px;
+			button { font: inherit; font-weight: 600; color: inherit; background: rgba(255,255,255,.1); border: 0; border-radius: 8px;
 				padding: 7px 10px; cursor: pointer; white-space: nowrap; }
 			button:hover { background: rgba(255,255,255,.2); }
-			button.on { background: #d97757; }
+			button:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+			button.on { background: var(--pink); color: var(--on-neon); }
+			button.on:hover { background: var(--pink-hi); }
 			.presets { display: flex; flex-wrap: wrap; gap: 4px; }
 			.presets small { opacity: .65; margin-left: 4px; font-weight: 400; }
-			#info { margin-left: auto; opacity: .7; font-variant-numeric: tabular-nums; }
+			#info { margin-left: auto; color: #c5c9d2; font-variant-numeric: tabular-nums; }
 			main { position: relative; flex: 1; overflow: hidden; }
-			#frame-wrap { position: absolute; top: 16px; left: 50%; transform-origin: top center; background: #fff;
-				box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 10px 40px rgba(0,0,0,.15); }
-			iframe { display: block; border: 0; width: 100%; height: 100%; background: #fff; }
+			#frame-wrap { position: absolute; top: 16px; left: 50%; transform-origin: top center; background: #fff; border-radius: 4px;
+				box-shadow: 0 0 0 1px rgba(0,0,0,.1), 0 10px 40px rgba(0,0,0,.18); }
+			iframe { display: block; border: 0; width: 100%; height: 100%; background: #fff; border-radius: 4px; }
 		</style>
 	</head>
 	<body>
 		<header>
+			<img class="mark" src="icons/icon.svg" alt="" />
 			<form id="nav">
 				<input id="url" type="text" placeholder="https://site.test" spellcheck="false" />
 				<button type="button" id="reload" title="Reload">↻</button>

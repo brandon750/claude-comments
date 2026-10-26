@@ -58,6 +58,11 @@ const server = http.createServer(async (req, res) => {
 			return res.end(fs.readFileSync(path.join(__dirname, 'dashboard.html')));
 		}
 
+		if (req.method === 'GET' && url.pathname === '/icon.svg') {
+			res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+			return res.end(fs.readFileSync(path.join(__dirname, 'extension/icons/icon.svg')));
+		}
+
 		if (req.method === 'GET' && url.pathname.startsWith('/screenshots/')) {
 			const file = path.join(store.SHOTS_DIR, path.basename(url.pathname));
 			if (!fs.existsSync(file)) return json(res, { error: 'Not found' }, 404);

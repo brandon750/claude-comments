@@ -4,79 +4,138 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Claude Comments</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap" />
+		<link rel="icon" href="/icon.svg" type="image/svg+xml" />
 		<style>
-			:root { --bg: #f4f2ec; --card: #fff; --ink: #1f1e1d; --muted: #6b6964; --line: #e2dfd6; --accent: #d97757; }
+			/* Brand: liquid chrome + gunmetal, hot pink for your actions, bright green for Claude/done.
+			   Neon fills always carry dark text; the blackletter is only for the wordmark. */
+			:root {
+				--bg: #eceef3; --card: #fff; --ink: #121218; --muted: #5d6170; --line: #d9dce4;
+				--pink: #ff66b8; --pink-hi: #ff8ac9; --green: #2bff88; --blue: #3ab4ff; --amber: #ffc21a; --violet: #b98cff; --red: #ff3b5c; --on-neon: #120a10;
+				--accent: var(--pink); --metal: #0d0e12; --metal-2: #1c1e25;
+				--chrome: linear-gradient(180deg, #fff 0%, #d4d9e1 30%, #7c8491 49%, #f2f4f7 53%, #aab1bc 80%, #eef1f4 100%);
+				--glow-pink: rgba(255,102,184,.16); --glow-green: rgba(43,255,136,.14);
+				--blue-ink: #0b6fb8; --amber-ink: #8a6500;
+			}
 			@media (prefers-color-scheme: dark) {
-				:root { --bg: #1a1918; --card: #252321; --ink: #ecebe7; --muted: #a09d96; --line: #383532; }
+				:root { --bg: #0a0a0e; --card: #15161c; --ink: #eceef3; --muted: #9a9eab; --line: #2a2c36;
+					--glow-pink: rgba(255,102,184,.14); --glow-green: rgba(43,255,136,.08); --blue-ink: var(--blue); --amber-ink: var(--amber); }
 			}
 			* { box-sizing: border-box; }
 			[hidden] { display: none !important; }
-			body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+			body { margin: 0; min-height: 100vh; color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+				background: radial-gradient(900px 500px at 100% -10%, var(--glow-pink), transparent 70%),
+					radial-gradient(700px 500px at -10% 110%, var(--glow-green), transparent 70%), var(--bg) fixed; }
 			header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-				padding: 14px 24px; background: var(--bg); border-bottom: 1px solid var(--line); }
-			h1 { margin: 0 12px 0 0; font-size: 17px; }
-			select, button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-			button:hover { border-color: var(--muted); }
+				padding: 12px 24px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px) saturate(1.4);
+				border-bottom: 1px solid var(--line); }
+			h1 { margin: 0 12px 0 0; display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px;
+				background: linear-gradient(180deg, var(--metal-2), var(--metal)); box-shadow: 0 4px 18px rgba(0,0,0,.25);
+				font: 400 22px/1 "UnifrakturMaguntia", "Old English Text MT", serif; letter-spacing: .01em; }
+			h1 img { width: 22px; height: 22px; animation: spin-in .9s cubic-bezier(.2,1.4,.4,1) both; }
+			h1:hover img { animation: spin 1s cubic-bezier(.3,1.3,.5,1); }
+			/* A light sweeps across the chrome wordmark every few seconds. */
+			h1 span { padding-bottom: 2px; color: transparent; -webkit-background-clip: text; background-clip: text;
+				background-image: linear-gradient(105deg, transparent 42%, rgba(255,255,255,.95) 49%, #ffd1ea 51%, transparent 58%), var(--chrome);
+				background-size: 300% 100%, 100% 100%; background-repeat: no-repeat; animation: sheen 7s ease-in-out 1s infinite; }
+			@keyframes sheen { 0% { background-position: 120% 0, 0 0; } 25%, 100% { background-position: -20% 0, 0 0; } }
+			@keyframes spin-in { from { opacity: 0; transform: rotate(-180deg) scale(.3); } }
+			@keyframes spin { to { transform: rotate(360deg); } }
+			select, button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+			button:hover, select:hover { border-color: var(--muted); }
+			button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
 			main { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 24px; }
-			.card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-			.shot { display: block; aspect-ratio: 16 / 10; background: var(--line); }
+			.card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+				box-shadow: 0 1px 2px rgba(0,0,0,.06); transition: border-color .3s, box-shadow .3s; }
+			/* Cards rise in on first view (staggered); a card whose status just changed flashes in its new colour. */
+			.card.enter { animation: rise .55s cubic-bezier(.2,.9,.25,1) both; animation-delay: calc(min(var(--i, 0), 12) * 45ms); }
+			@keyframes rise { from { opacity: 0; transform: translateY(18px); filter: blur(4px); } }
+			.card.changed { --flash: var(--pink); animation: flash 1.4s ease-out; }
+			.card.changed.resolved { --flash: var(--green); }
+			.card.changed.in_progress { --flash: var(--blue); }
+			.card.changed.needs_info { --flash: var(--amber); }
+			@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--flash), 0 0 0 0 var(--flash); } 20% { box-shadow: 0 0 0 3px var(--flash), 0 0 40px 4px var(--flash); } }
+			.card.changed .chip { animation: pop .6s cubic-bezier(.2,1.6,.4,1); }
+			@keyframes pop { 0% { transform: scale(.4); } }
+			.card.changed.resolved .head::after { content: "✦"; color: var(--green); font-size: 16px; animation: burst 1.1s ease-out both; }
+			@keyframes burst { 0% { opacity: 0; transform: scale(.2) rotate(-90deg); } 40% { opacity: 1; transform: scale(1.5) rotate(20deg); } 100% { opacity: 0; transform: scale(.8) rotate(90deg); } }
+			.shot { display: block; aspect-ratio: 16 / 10; background: var(--line); border-bottom: 1px solid var(--line); }
 			.shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+			.shot:hover img { filter: brightness(1.05); }
 			.body { display: flex; flex-direction: column; gap: 8px; padding: 14px; flex: 1; }
-			.head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
-			.chip { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; background: #fbe9e2; color: #a3492a; }
-			.chip.resolved { background: #e2f3e7; color: #2c7343; }
-			.chip.needs_info { background: #faf0d2; color: #7d5f0d; }
+			.head { display: flex; gap: 8px; align-items: center; font-weight: 700; }
+			.chip { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 4px; background: var(--pink); color: var(--on-neon); }
+			.chip.resolved { background: var(--green); }
+			.chip.needs_info { background: var(--amber); }
+			.chip.in_progress { background: var(--blue); }
 			.vp { margin-left: auto; font-weight: 500; font-size: 12px; color: var(--muted); }
 			.text { white-space: pre-wrap; word-break: break-word; }
 			.meta { color: var(--muted); font-size: 12px; word-break: break-all; }
 			.meta a { color: inherit; }
-			.note { padding: 8px 10px; background: var(--bg); border-radius: 6px; font-size: 13px; white-space: pre-wrap; }
+			.note { padding: 8px 10px; background: var(--bg); border-radius: 8px; font-size: 13px; white-space: pre-wrap; }
 			.actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
-			.chip.in_progress { background: #e1ecfb; color: #2457a6; }
-			.card.in_progress { border-color: #8fb3ea; box-shadow: 0 0 0 1px #8fb3ea; }
-			.card.needs_info { border-color: #e2c672; }
-			.working { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #2457a6; }
+			.card.in_progress { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue), 0 0 24px -8px var(--blue); }
+			.card.needs_info { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+			.working { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 600; color: var(--blue-ink); }
 			.working::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.2s ease-in-out infinite; }
 			@keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+			@media (prefers-reduced-motion: reduce) { .working::before { animation: none; } }
 			.summary { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 14px 24px 0; font-size: 13px; color: var(--muted); }
 			.summary strong { color: var(--ink); }
-			.summary .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
-			.progress { flex-basis: 100%; height: 6px; display: flex; overflow: hidden; border-radius: 3px; background: var(--line); }
-			.progress span { display: block; height: 100%; transition: width .4s; }
-			.group { grid-column: 1 / -1; margin: 8px 0 -4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+			.summary .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+			.progress { position: relative; flex-basis: 100%; height: 8px; display: flex; overflow: hidden; border-radius: 4px; background: var(--line); box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
+			.progress span { display: block; height: 100%; transition: width .6s cubic-bezier(.3,1.2,.5,1); }
+			.progress::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent) no-repeat;
+				background-size: 30% 100%; animation: glint 3.2s ease-in-out infinite; }
+			@keyframes glint { from { background-position: -40% 0; } 60%, to { background-position: 140% 0; } }
+			.group { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 8px 0 -4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+			.group::before { content: "✦"; color: var(--pink); font-size: 13px; animation: twinkle 4s ease-in-out infinite; }
+			@keyframes twinkle { 0%, 80%, 100% { transform: none; } 88% { transform: scale(1.5) rotate(45deg); } }
+			.group::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
 			.group:first-child { margin-top: 0; }
 			.thread { display: flex; flex-direction: column; gap: 6px; }
-			.msg { padding: 8px 10px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; word-break: break-word; background: var(--bg); }
+			.msg { padding: 8px 10px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; word-break: break-word; background: var(--bg); }
 			.msg.user { margin-left: 24px; background: transparent; border: 1px solid var(--line); }
-			.msg b { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
+			.msg b { display: block; font-size: 11px; color: var(--muted); font-weight: 700; }
 			.reply { display: flex; flex-direction: column; gap: 6px; }
-			.reply textarea { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+			.reply textarea { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px;
 				padding: 8px; min-height: 64px; resize: vertical; }
-			.reply textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+			.reply textarea:focus { outline: 2px solid var(--pink); border-color: transparent; }
 			.reply .row { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
 			.reply .row span { margin-right: auto; font-size: 11px; color: var(--muted); }
-			button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+			button.primary { position: relative; overflow: hidden; background: var(--pink); border-color: var(--pink); color: var(--on-neon); font-weight: 700; }
+			button.primary::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.6) 50%, transparent 65%) no-repeat;
+				background-size: 250% 100%; background-position: 150% 0; pointer-events: none; }
+			button.primary:hover:not(:disabled)::after { transition: background-position .6s ease; background-position: -50% 0; }
+			button.primary:hover:not(:disabled) { background: var(--pink-hi); border-color: var(--pink-hi); box-shadow: 0 0 18px -4px var(--pink); }
 			button:disabled { opacity: .5; cursor: default; }
-			.pills { display: inline-flex; gap: 2px; padding: 3px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
-			.pills button { border: 0; border-radius: 999px; padding: 5px 12px; background: transparent; color: var(--muted); font-weight: 500; }
+			.pills { position: relative; display: inline-flex; gap: 2px; padding: 3px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+			.pills button { position: relative; z-index: 1; border: 0; border-radius: 999px; padding: 5px 12px; background: transparent; color: var(--muted); font-weight: 600; transition: color .25s; }
 			.pills button:hover { color: var(--ink); }
-			.pills button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+			.pills button[aria-pressed="true"] { color: var(--on-neon); }
+			/* Glossy thumb that slides to the pressed option, tinted with that option's colour (data-colour). */
+			.pills .thumb { position: absolute; top: 3px; bottom: 3px; left: 0; width: 0; opacity: 0; border-radius: 999px; pointer-events: none;
+				background-color: var(--c, var(--pink)); background-image: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.08) 50%, rgba(0,0,0,.06) 51%, rgba(255,255,255,.2));
+				box-shadow: inset 0 0 0 1px rgba(0,0,0,.18), 0 2px 8px -2px var(--c, var(--pink));
+				transition: transform .45s cubic-bezier(.3,1.35,.5,1), width .45s cubic-bezier(.3,1.35,.5,1), background-color .35s, box-shadow .35s; }
 			.pills .n { margin-left: 4px; opacity: .7; font-variant-numeric: tabular-nums; }
 			.usage { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--muted); }
 			.meter { display: grid; gap: 3px; min-width: 120px; }
 			.meter .top { display: flex; justify-content: space-between; gap: 8px; }
 			.meter strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-			.meter .track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-			.meter .fill { height: 100%; background: #3f9b5a; transition: width .4s; }
-			.meter .fill.warn { background: #c99a1e; }
-			.meter .fill.high { background: #c0453a; }
+			.meter .track { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+			.meter .fill { height: 100%; background: var(--green); transition: width .4s; }
+			.meter .fill.warn { background: var(--amber); }
+			.meter .fill.high { background: var(--red); }
 			.usage .refresh { padding: 4px 8px; font-size: 12px; }
-			.panel { margin: 14px 24px 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+			.panel { margin: 14px 24px 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
 				display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 13px; }
 			.panel .grow { flex: 1; min-width: 200px; }
 			.panel .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-			.panel.running { border-color: #8fb3ea; }
-			.panel.failed { border-color: #e0a39a; }
+			.panel.running { border-color: var(--blue); box-shadow: 0 0 24px -10px var(--blue); }
+			.panel.failed { border-color: var(--red); }
 			.panel details { flex-basis: 100%; font-size: 12px; }
 			.panel summary { cursor: pointer; color: var(--muted); }
 			.panel ol { margin: 8px 0 0; padding: 0; list-style: none; max-height: 280px; overflow: auto; display: flex; flex-direction: column; gap: 3px;
@@ -84,28 +143,32 @@
 			.panel li { white-space: pre-wrap; overflow-wrap: anywhere; }
 			.panel li.text { font-family: inherit; color: var(--ink); }
 			.panel li.tool { color: var(--muted); }
-			.panel li.error { color: #c0453a; }
-			.panel li.done { color: #2c7343; }
-			.result { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 10px; background: var(--bg); border-radius: 6px; max-height: 240px; overflow: auto; }
+			.panel li.error { color: var(--red); }
+			.panel li.done { color: #0a9a4c; }
+			@media (prefers-color-scheme: dark) { .panel li.done { color: var(--green); } }
+			.result { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 10px; background: var(--bg); border-radius: 8px; max-height: 240px; overflow: auto; }
 			.empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 60px 0; }
+			.empty::before { content: "✦"; display: block; margin-bottom: 8px; font-size: 28px; color: var(--pink); animation: float 3s ease-in-out infinite; }
+			@keyframes float { 50% { transform: translateY(-6px) rotate(45deg); } }
+			@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 			@media (max-width: 640px) { header, main, .summary { padding-left: 16px; padding-right: 16px; } .panel { margin-left: 16px; margin-right: 16px; } .usage { margin-left: 0; flex-basis: 100%; } main { grid-template-columns: 1fr; } }
 		</style>
 	</head>
 	<body>
 		<header>
-			<h1>Claude Comments</h1>
+			<h1><img src="/icon.svg" alt="" /><span>Claude Comments</span></h1>
 			<select id="site"></select>
 			<div class="pills" id="status" role="group" aria-label="Status">
-				<button type="button" data-status="open,in_progress,needs_info" aria-pressed="true">Open<span class="n"></span></button>
-				<button type="button" data-status="resolved" aria-pressed="false">Resolved<span class="n"></span></button>
-				<button type="button" data-status="all" aria-pressed="false">All<span class="n"></span></button>
+				<button type="button" data-status="open,in_progress,needs_info" data-colour="pink" aria-pressed="true">Open<span class="n"></span></button>
+				<button type="button" data-status="resolved" data-colour="green" aria-pressed="false">Resolved<span class="n"></span></button>
+				<button type="button" data-status="all" data-colour="blue" aria-pressed="false">All<span class="n"></span></button>
 			</div>
 			<div class="usage" id="usage" title="Your Claude plan usage across all sessions, including interactive ones"></div>
 			<div class="pills" id="model" role="group" aria-label="Model for Action runs">
-				<button type="button" data-model="" aria-pressed="false" title="Your Claude Code default model">Default</button>
-				<button type="button" data-model="opus" aria-pressed="false" title="Most capable, uses the most of your plan">Opus</button>
-				<button type="button" data-model="sonnet" aria-pressed="false" title="Good for most fixes, uses much less of your plan">Sonnet</button>
-				<button type="button" data-model="haiku" aria-pressed="false" title="Fastest and lightest. Best for simple tweaks">Haiku</button>
+				<button type="button" data-model="" data-colour="violet" aria-pressed="false" title="Your Claude Code default model">Default</button>
+				<button type="button" data-model="opus" data-colour="pink" aria-pressed="false" title="Most capable, uses the most of your plan">Opus</button>
+				<button type="button" data-model="sonnet" data-colour="blue" aria-pressed="false" title="Good for most fixes, uses much less of your plan">Sonnet</button>
+				<button type="button" data-model="haiku" data-colour="green" aria-pressed="false" title="Fastest and lightest. Best for simple tweaks">Haiku</button>
 			</div>
 			<button type="button" id="action" class="primary" disabled>Action comments</button>
 		</header>
@@ -137,6 +200,8 @@
 				['resolved', 'Resolved'],
 			];
 			const drafts = {}; // reply drafts by comment id, kept across re-renders
+			const shown = new Set(); // cards already on screen for this filter, so only new ones animate in
+			const lastStatus = {}; // so a card whose status changes can flash
 			let lastJson = '';
 
 			function ago(iso) {
@@ -173,7 +238,7 @@
 					resolved: all.filter((c) => c.status === 'resolved' && c.resolvedAt && new Date(c.resolvedAt).toDateString() === today).length,
 				};
 				const total = Object.values(counts).reduce((a, b) => a + b, 0);
-				const colours = { resolved: '#3f9b5a', in_progress: '#2457a6', needs_info: '#c99a1e', open: 'var(--accent)' };
+				const colours = { resolved: 'var(--green)', in_progress: 'var(--blue)', needs_info: 'var(--amber)', open: 'var(--pink)' };
 				const labels = { resolved: 'resolved today', in_progress: 'in progress', needs_info: 'need your input', open: 'queued' };
 				const order = ['resolved', 'in_progress', 'needs_info', 'open'];
 				summaryEl.hidden = !total;
@@ -220,7 +285,22 @@
 
 			function renderModel(model) {
 				for (const b of modelEl.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.model === (model || '')));
+				placeThumb(modelEl);
 			}
+
+			// Slides each pill group's thumb under its pressed button. Jumps into place the first time.
+			function placeThumb(group) {
+				const thumb = group.querySelector('.thumb') || group.appendChild(Object.assign(document.createElement('span'), { className: 'thumb' }));
+				const btn = group.querySelector('[aria-pressed="true"]');
+				if (!btn) return (thumb.style.opacity = 0);
+				const first = !thumb.style.width;
+				if (first) thumb.style.transition = 'none';
+				thumb.style.setProperty('--c', `var(--${btn.dataset.colour})`);
+				Object.assign(thumb.style, { opacity: 1, width: `${btn.offsetWidth}px`, transform: `translateX(${btn.offsetLeft}px)` });
+				if (first) requestAnimationFrame(() => (thumb.style.transition = ''));
+			}
+			// Counts and fonts change button widths, so follow them.
+			for (const group of [statusEl, modelEl]) new ResizeObserver(() => placeThumb(group)).observe(group);
 
 			function meter(label, w) {
 				if (!w) return '';
@@ -269,13 +349,14 @@
 					<button type="button" data-clear ${clearable ? '' : 'disabled'}>Clear ${formatBytes(clearable)}</button>`;
 			}
 
-			function card(c) {
+			function card(c, i) {
 				const thread = c.thread || [];
 				const noteInThread = thread.some((m) => m.from === 'claude' && m.text === c.resolution);
 				// Older needs-info comments only have the question in `resolution`.
 				const messages = c.status === 'needs_info' && c.resolution && !noteInThread ? [...thread, { from: 'claude', text: c.resolution }] : thread;
+				const anim = !shown.has(c.id) ? 'enter' : lastStatus[c.id] !== c.status ? 'changed' : '';
 				return `
-					<article class="card ${c.status}">
+					<article class="card ${c.status} ${anim}" style="--i:${i}">
 						${c.screenshot ? `<a class="shot" href="/screenshots/${c.id}.png" target="_blank"><img loading="lazy" src="/screenshots/${c.id}.png" alt=""></a>` : ''}
 						<div class="body">
 							<div class="head">#${c.number} <span class="chip ${c.status}">${STATUS_LABEL[c.status] || c.status}</span>
@@ -327,6 +408,11 @@
 							return items.length ? `<h2 class="group">${title} (${items.length})</h2>${items.map(card).join('')}` : '';
 						}).join('')
 					: comments.map(card).join('');
+
+				for (const c of comments) {
+					shown.add(c.id);
+					lastStatus[c.id] = c.status;
+				}
 
 				if (focus) {
 					const ta = list.querySelector(`textarea[data-id="${focus.id}"]`);
@@ -387,12 +473,17 @@
 				refresh();
 			});
 
-			siteEl.addEventListener('change', () => render());
+			siteEl.addEventListener('change', () => {
+				shown.clear();
+				render();
+			});
 			statusEl.addEventListener('click', (e) => {
 				const btn = e.target.closest('button[data-status]');
 				if (!btn) return;
 				status = btn.dataset.status;
 				for (const b of statusEl.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === btn));
+				placeThumb(statusEl);
+				shown.clear();
 				render();
 			});
 
