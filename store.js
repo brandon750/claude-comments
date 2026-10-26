@@ -139,4 +139,47 @@ function remove(id) {
 	return { ok: true };
 }
 
-module.exports = { DATA_DIR, SHOTS_DIR, STATUSES, list, get, sites, create, update, remove };
+function fileSize(file) {
+	try {
+		return fs.statSync(file).size;
+	} catch {
+		return 0;
+	}
+}
+
+// Screenshot disk usage for a site (or all sites): every screenshot, resolved comments' screenshots,
+// and orphans (files no comment points at, e.g. left behind by a deleted comment).
+function storage({ site } = {}) {
+	const all = load();
+	const comments = site ? all.filter((c) => c.site === site) : all;
+	const sum = (files) => ({ count: files.length, bytes: files.reduce((n, f) => n + fileSize(f), 0) });
+	const referenced = new Set(all.map((c) => c.screenshot).filter(Boolean));
+	const orphans = site ? [] : fs.readdirSync(SHOTS_DIR).map((f) => path.join(SHOTS_DIR, f)).filter((f) => !referenced.has(f));
+	return {
+		total: sum(comments.map((c) => c.screenshot).filter(Boolean)),
+		resolved: sum(comments.filter((c) => c.status === 'resolved' && c.screenshot).map((c) => c.screenshot)),
+		orphans: sum(orphans),
+	};
+}
+
+// Deletes the screenshots of resolved comments (plus orphans when not limited to one site). The comments stay.
+function clearResolvedScreenshots({ site } = {}) {
+	const before = storage({ site });
+	const comments = load();
+	for (const c of comments) {
+		if (c.status !== 'resolved' || !c.screenshot || (site && c.site !== site)) continue;
+		fs.rmSync(c.screenshot, { force: true });
+		c.screenshot = null;
+	}
+	save(comments);
+	if (!site) {
+		const referenced = new Set(comments.map((c) => c.screenshot).filter(Boolean));
+		for (const f of fs.readdirSync(SHOTS_DIR)) {
+			const file = path.join(SHOTS_DIR, f);
+			if (!referenced.has(file)) fs.rmSync(file, { force: true });
+		}
+	}
+	return { freed: before.resolved.bytes + before.orphans.bytes, count: before.resolved.count + before.orphans.count };
+}
+
+module.exports = { DATA_DIR, SHOTS_DIR, STATUSES, list, get, sites, create, update, remove, storage, clearResolvedScreenshots };

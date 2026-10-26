@@ -16,6 +16,7 @@
 		pins: [],
 		path: location.pathname,
 		serverDown: false,
+		running: false,
 	};
 
 	const STYLES = `
@@ -84,6 +85,7 @@
 		<div class="bar">
 			<button class="btn primary" data-act="mode" title="Toggle comment mode (⌥C)">Comment</button>
 			<span class="count"></span>
+			<button class="btn" data-act="run" title="Have Claude Code action the open comments for this site">Action</button>
 			<button class="btn" data-act="resolved" title="Show resolved comments">Resolved</button>
 			${inViewer ? '' : '<button class="btn" data-act="viewer" title="Open in the responsive viewer">Responsive</button>'}
 			<button class="btn" data-act="dashboard" title="Open the comments dashboard">All</button>
@@ -315,7 +317,14 @@
 	function renderCount() {
 		const open = state.comments.filter((c) => c.status !== 'resolved');
 		const onPage = open.filter((c) => c.path === location.pathname).length;
-		$('.count').textContent = state.serverDown ? 'server offline' : `${onPage} here · ${open.length} on site`;
+		$('.count').textContent = state.serverDown
+			? 'server offline'
+			: state.running
+				? 'Claude is working…'
+				: `${onPage} here · ${open.length} on site`;
+		const runBtn = $('[data-act=run]');
+		runBtn.disabled = state.running;
+		runBtn.style.opacity = state.running ? '.5' : '';
 	}
 
 	// ---------- composer + detail ----------
@@ -453,6 +462,33 @@
 		placePop(r.right - 14, r.bottom - 14);
 	}
 
+	// ---------- running Claude ----------
+
+	// While Claude is running, refresh pins so they turn blue then green as it works through them.
+	let watchTimer;
+	async function watchRun() {
+		clearTimeout(watchTimer);
+		try {
+			state.running = (await send({ type: 'runStatus', site: SITE })).running;
+		} catch {
+			state.running = false;
+		}
+		await load();
+		if (state.running) watchTimer = setTimeout(watchRun, 4000);
+	}
+
+	async function startRun() {
+		const pending = state.comments.filter((c) => c.status === 'open' || c.status === 'in_progress').length;
+		if (!pending) return toast('No open comments to action.');
+		try {
+			await send({ type: 'run', site: SITE });
+			toast(`Claude is actioning ${pending} comment${pending === 1 ? '' : 's'}. Follow along in the dashboard (All).`);
+			watchRun();
+		} catch (err) {
+			toast(err.message, true);
+		}
+	}
+
 	// ---------- comment mode ----------
 
 	function setMode(on) {
@@ -519,6 +555,7 @@
 	root.addEventListener('click', (e) => {
 		const act = e.target.closest?.('.bar [data-act]')?.dataset.act;
 		if (act === 'mode') setMode(!state.mode);
+		if (act === 'run') startRun();
 		if (act === 'resolved') {
 			state.showResolved = !state.showResolved;
 			e.target.classList.toggle('on', state.showResolved);
@@ -552,9 +589,9 @@
 	}, 500);
 
 	window.addEventListener('resize', renderPins);
-	window.addEventListener('focus', load);
-	document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && load());
+	window.addEventListener('focus', watchRun);
+	document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && watchRun());
 
 	notifyViewer();
-	load();
+	watchRun();
 })();

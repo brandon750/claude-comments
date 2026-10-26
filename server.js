@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const store = require('./store');
+const runner = require('./runner');
 
 const PORT = Number(process.env.PORT) || 4848;
 const MAX_BODY = 25 * 1024 * 1024;
@@ -36,9 +37,16 @@ function readJson(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-	res.setHeader('Access-Control-Allow-Origin', '*');
-	res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-	res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+	// Only the dashboard and the extension may talk to the API. Any web page can send a request to
+	// localhost, and the run endpoint starts Claude Code, so other origins are refused outright.
+	const origin = req.headers.origin;
+	const allowed = !origin || origin === `http://localhost:${PORT}` || origin === `http://127.0.0.1:${PORT}` || origin.startsWith('chrome-extension://');
+	if (!allowed) return json(res, { error: 'Forbidden origin' }, 403);
+	if (origin) {
+		res.setHeader('Access-Control-Allow-Origin', origin);
+		res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+		res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+	}
 	if (req.method === 'OPTIONS') return res.end();
 
 	const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -59,6 +67,27 @@ const server = http.createServer(async (req, res) => {
 
 		if (req.method === 'GET' && url.pathname === '/api/health') return json(res, { ok: true });
 		if (req.method === 'GET' && url.pathname === '/api/sites') return json(res, store.sites());
+
+		if (url.pathname === '/api/storage' && req.method === 'GET') return json(res, store.storage({ site: url.searchParams.get('site') }));
+		if (url.pathname === '/api/screenshots' && req.method === 'DELETE') {
+			return json(res, store.clearResolvedScreenshots({ site: url.searchParams.get('site') }));
+		}
+
+		if (url.pathname === '/api/config') {
+			if (req.method === 'GET') return json(res, runner.config());
+			if (req.method === 'PATCH') return json(res, runner.updateConfig(await readJson(req)));
+		}
+		if (url.pathname === '/api/usage') {
+			if (req.method === 'GET') return json(res, runner.usage());
+			if (req.method === 'POST') return json(res, await runner.refreshUsage());
+		}
+
+		if (url.pathname === '/api/run') {
+			const site = url.searchParams.get('site');
+			if (req.method === 'GET') return json(res, runner.status(site));
+			if (req.method === 'POST') return json(res, runner.start((await readJson(req)).site), 202);
+			if (req.method === 'DELETE') return json(res, runner.stop(site));
+		}
 
 		if (url.pathname === '/api/comments') {
 			if (req.method === 'GET') {

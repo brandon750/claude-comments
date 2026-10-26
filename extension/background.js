@@ -26,6 +26,10 @@ async function handle(msg, sender) {
 			return api(`/api/comments/${msg.id}`, { method: 'PATCH', body: msg.patch });
 		case 'delete':
 			return api(`/api/comments/${msg.id}`, { method: 'DELETE' });
+		case 'run':
+			return api('/api/run', { method: 'POST', body: { site: msg.site } });
+		case 'runStatus':
+			return api(`/api/run?site=${encodeURIComponent(msg.site)}`);
 		case 'openViewer':
 			await chrome.tabs.create({
 				url: `${chrome.runtime.getURL('viewer.html')}?url=${encodeURIComponent(msg.url)}`,

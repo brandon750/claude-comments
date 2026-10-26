@@ -8,10 +8,8 @@
 //   node cli.js resolve <id> --note "What was changed"
 //   node cli.js needs-info <id> --note "Question for the reviewer"
 //   node cli.js reopen <id>
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const store = require('./store');
+const sites = require('./sites');
 
 const [command, ...rest] = process.argv.slice(2);
 const flags = {};
@@ -21,35 +19,8 @@ for (let i = 0; i < rest.length; i++) {
 	else positional.push(rest[i]);
 }
 
-const HERD_LINKS = path.join(os.homedir(), 'Library/Application Support/Herd/config/valet/Sites');
-const VALET_LINKS = path.join(os.homedir(), '.config/valet/Sites');
-
-// Herd/Valet linked sites: { name: realpath } e.g. { cbh: '/Users/me/Developer/cottesloebeachhotel' }
-function linkedSites() {
-	const links = {};
-	for (const dir of [HERD_LINKS, VALET_LINKS]) {
-		try {
-			for (const name of fs.readdirSync(dir)) links[name] = fs.realpathSync(path.join(dir, name));
-		} catch {}
-	}
-	return links;
-}
-
-// Match the current directory to a site: a Herd/Valet link pointing at (a parent of) cwd,
-// otherwise a parked folder name, e.g. ~/Developer/foo/... → foo.test
 function detectSite() {
-	const cwd = fs.realpathSync(process.cwd());
-	const known = store.sites().map((s) => s.site);
-	const nameOf = (site) => site.replace(/\.test(:\d+)?$/, '');
-
-	const links = linkedSites();
-	const linked = known
-		.filter((site) => links[nameOf(site)] && (cwd + '/').startsWith(links[nameOf(site)] + '/'))
-		.sort((a, b) => links[nameOf(b)].length - links[nameOf(a)].length);
-	if (linked.length) return linked[0];
-
-	const segments = cwd.split('/');
-	return known.find((site) => segments.includes(nameOf(site))) || null;
+	return sites.siteForDir(process.cwd(), store.sites().map((s) => s.site));
 }
 
 function format(c, { full = false } = {}) {
