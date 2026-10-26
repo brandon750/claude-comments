@@ -75,7 +75,14 @@
 			.meta { color: var(--muted); font-size: 12px; word-break: break-all; }
 			.meta a { color: inherit; }
 			.note { padding: 8px 10px; background: var(--bg); border-radius: 8px; font-size: 13px; white-space: pre-wrap; }
-			.actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
+			.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: auto; padding-top: 6px; }
+			/* Per-comment model override. Tinted with the model's colour once it's set. */
+			.actions .run-one { display: inline-flex; align-items: center; gap: 5px; }
+			.actions .run-one::before { content: ""; width: 0; height: 0; border-left: 7px solid currentColor; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+			.model-pick { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+			.model-pick select { padding: 5px 8px; font-size: 12px; font-weight: 600; transition: border-color .25s, box-shadow .25s; }
+			.model-pick select.set { border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 0 0 14px -4px var(--c); }
+			.chip.model { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--c); }
 			.card.in_progress { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue), 0 0 24px -8px var(--blue); }
 			.card.needs_info { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
 			.working { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 600; color: var(--blue-ink); }
@@ -227,7 +234,7 @@
 				const all = await fetch(`/api/comments?${q}`).then((r) => r.json());
 				const pillCounts = { [OPEN]: all.filter((c) => c.status !== 'resolved').length, resolved: all.filter((c) => c.status === 'resolved').length, all: all.length };
 				for (const b of statusEl.querySelectorAll('button')) b.querySelector('.n').textContent = pillCounts[b.dataset.status];
-				renderActionButton(all.filter((c) => c.status === 'open' || c.status === 'in_progress').length);
+				renderActionButton(all.filter((c) => c.status === 'open' || c.status === 'in_progress'));
 				if (status === 'resolved') return (summaryEl.hidden = true);
 				const today = new Date().toDateString();
 				const n = (status) => all.filter((c) => c.status === status).length;
@@ -249,11 +256,21 @@
 
 			const formatBytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
-			function renderActionButton(pending) {
+			function renderActionButton(queued) {
 				const site = siteEl.value;
+				const pending = queued.length;
+				// Comments set to a model other than the main one run in their own session afterwards.
+				const own = queued.filter((c) => c.model && c.model !== mainModel);
+				const names = [...new Set(own.map((c) => modelName(c.model)))].join(' + ');
 				actionEl.disabled = !site || !pending || run.running;
-				actionEl.textContent = run.running ? 'Claude is working…' : pending ? `Action ${pending} comment${pending === 1 ? '' : 's'}` : 'Nothing to action';
-				actionEl.title = !site ? 'Pick a site first' : `Runs /action-comments for ${site} with Claude Code`;
+				actionEl.textContent = run.running
+					? 'Claude is working…'
+					: pending
+						? `Action ${pending} comment${pending === 1 ? '' : 's'}${own.length ? ` (${own.length} on ${names})` : ''}`
+						: 'Nothing to action';
+				actionEl.title = !site
+					? 'Pick a site first'
+					: `Runs /action-comments for ${site} with Claude Code${own.length ? `. Comments on another model run in their own session after the rest.` : ''}`;
 			}
 
 			async function renderRun() {
@@ -270,7 +287,7 @@
 				runEl.innerHTML = `
 					<div class="grow">
 						${run.running
-							? `<div class="working">Claude is actioning ${run.pending} comment${run.pending === 1 ? '' : 's'} · started ${ago(run.startedAt)} · ${esc(run.model)}</div>`
+							? `<div class="working">Claude is actioning ${run.pending} comment${run.pending === 1 ? '' : 's'} · started ${ago(run.startedAt)} · ${esc(run.model)}${run.batches?.length > 1 ? ` · batch ${run.batch + 1} of ${run.batches.length}` : ''}</div>`
 							: `<strong>${run.stopped ? 'Run stopped' : failed ? 'Run failed' : 'Run finished'}</strong> · ${ago(run.finishedAt)}${run.cost != null ? ` · <span title="What this run would cost at API prices. On a Claude subscription it isn't billed. It counts towards your plan's usage limits instead.">≈ $${run.cost.toFixed(2)} API-equivalent</span>` : ''}`}
 						<div class="sub">${esc(run.activity)}</div>
 					</div>
@@ -279,11 +296,26 @@
 					${run.log.length ? `<details ${openLog ? 'open' : ''}><summary>Activity (${run.log.length})</summary>
 						<ol>${run.log.map((l) => `<li class="${l.kind}">${esc(l.text)}</li>`).join('')}</ol>
 					</details>` : ''}`;
+				// Cards only redraw when comments change, so keep their Run buttons in step with the run here.
+				for (const b of list.querySelectorAll('[data-run-one]')) b.disabled = run.running;
 				const ol = runEl.querySelector('ol');
 				if (ol) ol.scrollTop = atBottom ? ol.scrollHeight : prevTop;
 			}
 
+			const MODEL_COLOUR = { opus: 'pink', sonnet: 'blue', haiku: 'green' };
+			const modelName = (m) => (m ? m[0].toUpperCase() + m.slice(1) : 'Default');
+			let mainModel = null; // the header's model, used by comments without an override
+
+			function modelPicker(c) {
+				const options = [['', `Main (${modelName(mainModel)})`], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']];
+				return `<label class="model-pick" title="${c.status === 'in_progress' ? 'Already running' : 'Run this comment on a different model, e.g. Opus for a big task'}">Model
+					<select data-model-for="${c.id}" class="${c.model ? 'set' : ''}" ${c.model ? `style="--c:var(--${MODEL_COLOUR[c.model]})"` : ''} ${c.status === 'in_progress' ? 'disabled' : ''}>
+						${options.map(([v, label]) => `<option value="${v}" ${(c.model || '') === v ? 'selected' : ''}>${label}</option>`).join('')}
+					</select></label>`;
+			}
+
 			function renderModel(model) {
+				mainModel = model || null;
 				for (const b of modelEl.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.model === (model || '')));
 				placeThumb(modelEl);
 			}
@@ -356,10 +388,11 @@
 				const messages = c.status === 'needs_info' && c.resolution && !noteInThread ? [...thread, { from: 'claude', text: c.resolution }] : thread;
 				const anim = !shown.has(c.id) ? 'enter' : lastStatus[c.id] !== c.status ? 'changed' : '';
 				return `
-					<article class="card ${c.status} ${anim}" style="--i:${i}">
+					<article class="card ${c.status} ${anim}" style="--i:${i}" data-site="${esc(c.site)}">
 						${c.screenshot ? `<a class="shot" href="/screenshots/${c.id}.png" target="_blank"><img loading="lazy" src="/screenshots/${c.id}.png" alt=""></a>` : ''}
 						<div class="body">
 							<div class="head">#${c.number} <span class="chip ${c.status}">${STATUS_LABEL[c.status] || c.status}</span>
+								${c.model && c.status !== 'resolved' ? `<span class="chip model" style="--c:var(--${MODEL_COLOUR[c.model]})">${modelName(c.model)}</span>` : ''}
 								<span class="vp">${c.viewport?.width}px · ${c.viewport?.breakpoint}</span></div>
 							<div class="text">${esc(c.text)}</div>
 							<div class="meta"><a href="${esc(c.url)}" target="_blank">${esc(c.site + c.path)}</a> · ${new Date(c.createdAt).toLocaleString()}</div>
@@ -373,10 +406,13 @@
 									<div class="row"><span>⌘↵ to send · goes back in the queue</span><button class="primary" type="submit">Send to Claude</button></div>
 								</form>` : ''}
 							<div class="actions">
+								${c.status === 'open' ? `<button class="primary run-one" data-run-one="${c.id}" ${run.running ? 'disabled' : ''}
+									title="${run.running ? 'Claude is already working on this site' : `Have Claude action just this comment now (${modelName(c.model || mainModel)})`}">Run</button>` : ''}
 								${c.status === 'resolved'
 									? `<button data-id="${c.id}" data-status="open">Reopen</button>`
 									: `<button data-id="${c.id}" data-status="resolved" title="Close without Claude actioning it">Close comment</button>`}
 								<button data-id="${c.id}" data-delete>Delete</button>
+								${c.status !== 'resolved' ? modelPicker(c) : ''}
 							</div>
 						</div>
 					</article>`;
@@ -442,6 +478,33 @@
 				refresh();
 			});
 
+			list.addEventListener('click', async (e) => {
+				const btn = e.target.closest('button[data-run-one]');
+				if (!btn) return;
+				btn.disabled = true;
+				try {
+					await api('/api/run', { method: 'POST', body: JSON.stringify({ site: siteEl.value || btn.closest('.card').dataset.site, ids: [btn.dataset.runOne] }) });
+				} catch (err) {
+					alert(err.message);
+				}
+				render();
+			});
+
+			list.addEventListener('change', async (e) => {
+				const select = e.target.closest('select[data-model-for]');
+				if (!select) return;
+				select.disabled = true;
+				const model = select.value || null;
+				try {
+					const saved = await api(`/api/comments/${select.dataset.modelFor}`, { method: 'PATCH', body: JSON.stringify({ model }) });
+					// An older server accepts the request but drops the field.
+					if ((saved.model ?? null) !== model) alert('The server didn’t save the model. Restart it to pick up per-comment models.');
+				} catch (err) {
+					alert(err.message);
+				}
+				refresh();
+			});
+
 			list.addEventListener('input', (e) => {
 				if (e.target.matches('textarea[data-id]')) drafts[e.target.dataset.id] = e.target.value;
 			});
@@ -499,6 +562,7 @@
 				if (!btn) return;
 				const { model } = await api('/api/config', { method: 'PATCH', body: JSON.stringify({ model: btn.dataset.model || null }) });
 				renderModel(model);
+				render(); // pickers show the main model's name
 			});
 
 			usageEl.addEventListener('click', (e) => e.target.closest('.refresh') && refreshUsage());
@@ -531,7 +595,10 @@
 			window.addEventListener('focus', refresh);
 			setInterval(() => document.visibilityState === 'visible' && render({ force: false }), 2500);
 			refresh();
-			fetch('/api/config').then((r) => r.json()).then((c) => renderModel(c.model));
+			fetch('/api/config').then((r) => r.json()).then((c) => {
+				renderModel(c.model);
+				render();
+			});
 			// Fetch fresh usage when the dashboard opens, at most every 15 minutes.
 			renderUsage().then((u) => (!u.checkedAt || Date.now() - new Date(u.checkedAt) > 15 * 60000) && refreshUsage());
 		</script>

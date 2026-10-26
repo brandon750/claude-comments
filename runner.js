@@ -1,4 +1,6 @@
 // Runs `/action-comments` headlessly with the Claude Code CLI, one run per site at a time.
+// A run is split into batches by model: comments without an override share one session on the main model,
+// and comments set to another model get a session on that model. Batches run one after another.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -9,7 +11,7 @@ const sites = require('./sites');
 const RUNS_DIR = path.join(store.DATA_DIR, 'runs');
 const CONFIG_FILE = path.join(store.DATA_DIR, 'config.json');
 const USAGE_FILE = path.join(store.DATA_DIR, 'usage.json');
-const MODELS = ['opus', 'sonnet', 'haiku'];
+const MODELS = store.MODELS;
 const MAX_LOG = 300;
 
 // What the headless session may do without asking. Override in data/config.json, e.g.
@@ -172,41 +174,35 @@ function status(site) {
 	return publicState(runs[site]);
 }
 
-function start(site) {
+// ids limits the run to those comments, e.g. the Run button on a single card.
+function start(site, ids) {
 	if (!site) throw httpError(400, 'site is required');
 	if (runs[site]?.running) throw httpError(409, 'Claude is already actioning comments for this site');
 
-	const pending = store.list({ site, status: 'open,in_progress' }).length;
-	if (!pending) throw httpError(400, 'No open comments to action');
+	let comments = store.list({ site, status: 'open,in_progress' });
+	if (ids?.length) comments = comments.filter((c) => ids.includes(c.id));
+	if (!comments.length) throw httpError(400, ids?.length ? 'That comment isn’t open' : 'No open comments to action');
 
 	const cwd = sites.projectDir(site);
 	if (!cwd) throw httpError(400, `Could not find the project folder for ${site}. Link it in Herd or park its parent folder.`);
 
+	// Group by the model each comment will actually use, main model first.
 	const cfg = config();
-	const PATH = loginPath();
-	const args = [
-		'-p',
-		`/action-comments ${site}`,
-		'--output-format',
-		'stream-json',
-		'--verbose',
-		'--permission-mode',
-		cfg.permissionMode,
-		'--add-dir',
-		__dirname,
-	];
-	if (cfg.allowedTools?.length) args.push('--allowedTools', ...cfg.allowedTools);
-	if (cfg.model) args.push('--model', cfg.model);
-
-	const logFile = path.join(RUNS_DIR, `${site.replace(/[^\w.-]/g, '_')}.log`);
-	const raw = fs.createWriteStream(logFile);
-	const child = spawn(findClaude(PATH), args, { cwd, env: { ...process.env, PATH }, stdio: ['ignore', 'pipe', 'pipe'] });
+	const groups = new Map([[cfg.model, []]]);
+	for (const c of comments) {
+		const model = c.model || cfg.model;
+		if (!groups.has(model)) groups.set(model, []);
+		groups.get(model).push(c);
+	}
+	const batches = [...groups]
+		.filter(([, list]) => list.length)
+		.map(([model, list]) => ({ model, ids: list.map((c) => c.id), numbers: list.map((c) => c.number) }));
 
 	const run = {
 		site,
 		cwd,
 		running: true,
-		pending,
+		pending: comments.length,
 		startedAt: new Date().toISOString(),
 		finishedAt: null,
 		exitCode: null,
@@ -216,15 +212,50 @@ function start(site) {
 		result: null,
 		cost: null,
 		model: cfg.model || 'default',
-		child,
+		batches: batches.map(({ model, numbers }) => ({ model: model || 'default', numbers })),
+		batch: 0,
+		child: null,
 	};
 	runs[site] = run;
+
+	const logFile = path.join(RUNS_DIR, `${site.replace(/[^\w.-]/g, '_')}.log`);
+	fs.writeFileSync(logFile, '');
+	// With one batch, let the skill pick up every open comment as before; with several, each gets only its own.
+	runBatch(run, batches, 0, logFile, cfg, batches.length > 1 || !!ids?.length);
+	return publicState(run);
+}
+
+function runBatch(run, batches, index, logFile, cfg, scoped) {
+	const { site, cwd } = run;
+	const batch = batches[index];
+	const PATH = loginPath();
+	const args = [
+		'-p',
+		scoped ? `/action-comments ${site} ${batch.ids.join(' ')}` : `/action-comments ${site}`,
+		'--output-format',
+		'stream-json',
+		'--verbose',
+		'--permission-mode',
+		cfg.permissionMode,
+		'--add-dir',
+		__dirname,
+	];
+	if (cfg.allowedTools?.length) args.push('--allowedTools', ...cfg.allowedTools);
+	if (batch.model) args.push('--model', batch.model);
+
+	const raw = fs.createWriteStream(logFile, { flags: 'a' });
+	const child = spawn(findClaude(PATH), args, { cwd, env: { ...process.env, PATH }, stdio: ['ignore', 'pipe', 'pipe'] });
+	run.child = child;
+	run.batch = index;
+	run.model = batch.model || 'default';
 
 	const push = (entry) => {
 		run.log.push({ ...entry, at: new Date().toISOString() });
 		if (run.log.length > MAX_LOG) run.log.shift();
 		if (entry.kind === 'tool' || entry.kind === 'text') run.activity = entry.text;
 	};
+	const which = `${batch.model || 'main model'} · ${batch.numbers.map((n) => `#${n}`).join(', ')}`;
+	if (scoped) push({ kind: 'text', text: batches.length > 1 ? `Batch ${index + 1} of ${batches.length} · ${which}` : which });
 
 	let buffer = '';
 	child.stdout.on('data', (chunk) => {
@@ -243,8 +274,8 @@ function start(site) {
 			if (event.type === 'system' && event.subtype === 'init' && event.model) run.model = event.model;
 			if (event.type === 'rate_limit_event') saveUsage(event.rate_limit_info);
 			if (event.type === 'result') {
-				run.result = event.result || null;
-				run.cost = event.total_cost_usd ?? null;
+				run.result = [run.result, event.result].filter(Boolean).join('\n\n') || null;
+				if (event.total_cost_usd != null) run.cost = (run.cost || 0) + event.total_cost_usd;
 			}
 		}
 	});
@@ -255,15 +286,16 @@ function start(site) {
 	child.on('error', (err) => push({ kind: 'error', text: err.message }));
 	child.on('close', (code) => {
 		raw.end();
+		if (code !== 0) run.exitCode = code;
+		if (!run.stopped && index + 1 < batches.length) return runBatch(run, batches, index + 1, logFile, cfg, scoped);
+
 		run.running = false;
-		run.exitCode = code;
+		run.exitCode ??= code;
 		run.finishedAt = new Date().toISOString();
-		run.activity = run.stopped ? 'Stopped' : code === 0 ? 'Finished' : `Exited with code ${code}`;
+		run.activity = run.stopped ? 'Stopped' : run.exitCode === 0 ? 'Finished' : `Exited with code ${run.exitCode}`;
 		// Don't leave a comment stuck "in progress" if the run was stopped or crashed.
 		for (const c of store.list({ site, status: 'in_progress' })) store.update(c.id, { status: 'open' });
 	});
-
-	return publicState(run);
 }
 
 function stop(site) {

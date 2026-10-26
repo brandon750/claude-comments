@@ -90,7 +90,10 @@ const server = http.createServer(async (req, res) => {
 		if (url.pathname === '/api/run') {
 			const site = url.searchParams.get('site');
 			if (req.method === 'GET') return json(res, runner.status(site));
-			if (req.method === 'POST') return json(res, runner.start((await readJson(req)).site), 202);
+			if (req.method === 'POST') {
+				const body = await readJson(req);
+				return json(res, runner.start(body.site, body.ids), 202);
+			}
 			if (req.method === 'DELETE') return json(res, runner.stop(site));
 		}
 

@@ -8,6 +8,7 @@ const DATA_DIR = process.env.CLAUDE_COMMENTS_DATA || path.join(__dirname, 'data'
 const FILE = path.join(DATA_DIR, 'comments.json');
 const SHOTS_DIR = path.join(DATA_DIR, 'screenshots');
 const STATUSES = ['open', 'in_progress', 'needs_info', 'resolved'];
+const MODELS = ['opus', 'sonnet', 'haiku'];
 
 fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
@@ -79,6 +80,7 @@ function create(input) {
 		createdAt: new Date().toISOString(),
 		resolvedAt: null,
 		startedAt: null,
+		model: null, // per-comment override; null uses the dashboard's main model
 		thread: [],
 		viewport: input.viewport,
 		element: input.element,
@@ -124,6 +126,10 @@ function update(id, patch) {
 		if (patch.status === 'needs_info' && patch.resolution) comment.thread.push({ from: 'claude', text: patch.resolution, at: now });
 	}
 	if (patch.text !== undefined) comment.text = patch.text;
+	if (patch.model !== undefined) {
+		if (patch.model !== null && !MODELS.includes(patch.model)) throw httpError(400, `model must be one of ${MODELS.join(', ')} or null`);
+		comment.model = patch.model;
+	}
 	comment.updatedAt = now;
 
 	save(comments);
@@ -182,4 +188,4 @@ function clearResolvedScreenshots({ site } = {}) {
 	return { freed: before.resolved.bytes + before.orphans.bytes, count: before.resolved.count + before.orphans.count };
 }
 
-module.exports = { DATA_DIR, SHOTS_DIR, STATUSES, list, get, sites, create, update, remove, storage, clearResolvedScreenshots };
+module.exports = { DATA_DIR, SHOTS_DIR, STATUSES, MODELS, list, get, sites, create, update, remove, storage, clearResolvedScreenshots };
